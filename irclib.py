@@ -5,6 +5,7 @@ import os, sys, time
 fromHost = lambda host: host.split('!')[0][1:]
 modez = {'+':True, '-':False}
 hookz = {}
+threads = []
 
 class Data():
 	def __init__(self, data):
@@ -15,7 +16,7 @@ def hookFire(hook, data):
 	d = Data(data)
 	if hook in hookz.keys():
 		for i in hookz[hook]:
-			i(d)
+			threads.append(start_new_thread(i, (d)))
 
 class User():
 	def __init__(self, name, voice=False, op=False):
@@ -165,6 +166,9 @@ class Client():
 	def partChannel(self, channel, msg='G\'bye!'):
 		self.c.write('PART %s :%s' % (channel, msg))
 		del self.channels[channel]
+
+	def setUserMode(self, user, channel, mode): pass
+	def setChanMode(self, channel, mode): pass
 
 	def parse(self, inp):
 		def names(msg):
