@@ -3,6 +3,7 @@ import os, sys, time
 
 #LAMBDAZ!
 fromHost = lambda host: host.split('!')[0][1:]
+modez = {'+':True, '-':False}
 
 class User():
 	def __init__(self, name, voice=False, op=False):
@@ -15,7 +16,17 @@ class Channel():
 		self.name = name
 		self.users = {}
 		self.topic = ''
+		self.modes = {}
 	
+	def setMode(self, mode, user): 
+		self.modes[mode[1:]] = modez[mode[:1]]
+
+	def setUserMode(self, mode, user, byuser): 
+		if mode[1:] == 'v':
+			self.users[user].voice = modez[mode[:1]]
+		if mode[1:] == 'o':
+			self.users[user].voice = modez[mode[:1]]
+
 	def updateUsers(self, dic):
 		self.users.update(dic)
 	
@@ -127,6 +138,22 @@ class Client():
 			chan = msg[2]
 			nick = fromHost(hostmask)
 			self.channels[chan].userJoin(nick, hostmask)
+		
+		def mode(msg):
+			msg = msg.split(' ')
+			hostmask = msg[0]
+			chan = msg[2]
+			fromuser = fromHost(hostmask)
+			if len(msg) == 4: #Channel Mode
+				mode = msg[3]
+				self.channels[chan].setMode(mode, fromuser)
+			elif len(msg) == 5: #User Mode
+				touser = msg[4]
+				mode = msg[3]
+				self.channels[chan].setUserMode(mode, touser, fromuser)
+				print 'FIRED'
+
+		def setTopic(msg): pass
 
 		inp = inp.split('\r\n')
 		for l in inp:
@@ -144,5 +171,9 @@ class Client():
 					part(line)
 				elif line_type[1] == 'JOIN':
 					join(line)
+				elif line_type[1] == 'MODE':
+					mode(line)
+				elif line_type[1] == 'TOPIC':
+					setTopic(line)
 
 
