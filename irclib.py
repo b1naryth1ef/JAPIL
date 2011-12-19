@@ -1,6 +1,9 @@
 import socket, thread, random, re
 import os, sys, time
 
+#LAMBDAZ!
+fromHost = lambda host: host.split('!')[0][1:]
+
 class User():
 	def __init__(self, name, voice=False, op=False):
 		self.name = name
@@ -15,13 +18,25 @@ class Channel():
 	
 	def updateUsers(self, dic):
 		self.users.update(dic)
+	
+	def userPart(self, nick, msg, hostmask):
+		print 'User left: %s' % nick
+		del self.users[nick]
+	
+	def userJoin(self, nick, hostmask):
+		print 'User joined: %s' % nick
+		self.users[nick] = User(nick)
+
+def getUserObj(user):
+	if user.startswith('+'): return (user[1:], User(user, voice=True))
+	elif user.startswith('@'): return (user[1:], User(user, voice=True, op=True))
+	else: return (user, User(user))
 
 def updateList(li):
 	lm = {}
 	for user in li:
-		if user.startswith('+'): lm[user[1:]] = User(user, voice=True)
-		elif user.startswith('@'): lm[user[1:]] = User(user, voice=True, op=True)
-		else: lm[user] = User(user)
+		x = getUserObj(user)
+		lm[x[0]] = x[1]
 	return lm
 
 class Connection():
@@ -92,14 +107,26 @@ class Client():
 			chan = msg[1].split(' ')[4]
 			users = msg[2].split(' ')
 			self.channels[chan].updateUsers(updateList(users))
-			print self.channels[chan].users['Q'].op
 
 		def topic(msg):
-			#:servercentral.il.us.quakenet.org 332 Exampl3B0t #bitchnipples :Welcome to BITCHNIPPLES CLAN! We apologize for the inconvenience... http://www.reddit.com/r/AskReddit/comments/nfjlo/i_think_i_may_be_addicted_to_having_sex_with_my/
 			msg = msg.split(':', 2)
 			chan = msg[1].split(' ')[3]
 			topic = msg[2]
-			print chan,topic
+		
+		def part(msg):
+			msg = msg.split(' ')
+			hostmask = msg[0]
+			chan = msg[2]
+			pmsg = msg[3][1:]
+			nick = fromHost(hostmask)
+			self.channels[chan].userPart(nick, pmsg, hostmask)
+
+		def join(msg):
+			msg = msg.split(' ')
+			hostmask = msg[0]
+			chan = msg[2]
+			nick = fromHost(hostmask)
+			self.channels[chan].userJoin(nick, hostmask)
 
 		inp = inp.split('\r\n')
 		for l in inp:
@@ -111,9 +138,11 @@ class Client():
 					print 'Private Message!'
 				elif line_type[1] == '353':
 					names(line)
-				# elif line_type[1] == '366':
-				# 	print 'End of names!'
 				elif line_type[1] == '332':
 					topic(line)
+				elif line_type[1] == 'PART':
+					part(line)
+				elif line_type[1] == 'JOIN':
+					join(line)
 
 
