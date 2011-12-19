@@ -17,6 +17,9 @@ class Channel():
 		self.users = {}
 		self.topic = ''
 		self.modes = {}
+
+	def setTopic(self, topic, user):
+		self.topic = topic
 	
 	def setMode(self, mode, user): 
 		self.modes[mode[1:]] = modez[mode[:1]]
@@ -153,16 +156,30 @@ class Client():
 				self.channels[chan].setUserMode(mode, touser, fromuser)
 				print 'FIRED'
 
-		def setTopic(msg): pass
+		def setTopic(msg):
+			msg = msg.split(' ', 3)
+			hostmask = msg[0]
+			chan = msg[2]
+			newtopic = msg[3][1:]
+			user = fromHost(hostmask)
+			self.channels[chan].setTopic(newtopic, user)
+		
+		def msg(msg):
+			msg = msg.split(' ', 3)
+			hostmask = msg[0]
+			chan = msg[2]
+			msg = msg[3][1:]
+			user = fromHost(hostmask)
+			print '[%s] %s: %s' % (chan, user, msg)
 
 		inp = inp.split('\r\n')
 		for l in inp:
-			print '[X]',l
+			#print '[X]',l
 			line_type = l.strip().split(' ')
 			line = l.strip()
 			if len(line_type) >= 2:
 				if line_type[1] == 'PRIVMSG':
-					print 'Private Message!'
+					msg(line)
 				elif line_type[1] == '353':
 					names(line)
 				elif line_type[1] == '332':
@@ -175,5 +192,3 @@ class Client():
 					mode(line)
 				elif line_type[1] == 'TOPIC':
 					setTopic(line)
-
-
