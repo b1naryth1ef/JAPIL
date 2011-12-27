@@ -166,6 +166,9 @@ class Client():
 		self.botMode = False
 		self.botPrefix = '!'
 	
+	def send(self, chan, msg):
+		self.c.write('PRIVMSG %s :%s' % (chan, msg))
+	
 	def quit(self, msg='B1naryth1ef Rocks!', full=True):
 		self.c.write('QUIT :%s' % msg)
 		if full is True: self.c.disconnect()
