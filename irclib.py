@@ -1,11 +1,18 @@
 import socket, thread, random, re
-import os, sys, time
+import os, sys, time, thread
 
 #LAMBDAZ!
 fromHost = lambda host: host.split('!')[0][1:]
 modez = {'+':True, '-':False}
 hookz = {}
 threads = []
+
+def Listener(hook):
+	def deco(func):
+		if hook in hookz: hookz[hook].append(func)
+		else: hookz[hook] = [func]
+		return func
+	return deco
 
 class Data():
 	def __init__(self, data):
@@ -16,7 +23,7 @@ def hookFire(hook, data):
 	d = Data(data)
 	if hook in hookz.keys():
 		for i in hookz[hook]:
-			threads.append(start_new_thread(i, (d)))
+			threads.append(thread.start_new_thread(i, (d,)))
 
 class User():
 	def __init__(self, name, voice=False, op=False):
@@ -154,6 +161,10 @@ class Client():
 		self.channels = {}
 		self.nick = self.c.nick
 		self.rejoin = rejoin
+
+		self.autoPong = True
+		self.botMode = False
+		self.botPrefix = '!'
 	
 	def quit(self, msg='B1naryth1ef Rocks!', full=True):
 		self.c.write('QUIT :%s' % msg)
@@ -206,7 +217,8 @@ class Client():
 			hostmask = msg[0]
 			chan = msg[2]
 			fromuser = fromHost(hostmask)
-			if len(msg) == 4: #Channel Mode
+			if msg[2] == self.nick: pass
+			elif len(msg) == 4: #Channel Mode
 				mode = msg[3]
 				if fromuser != mode:
 					self.channels[chan].setMode(mode, fromuser)
@@ -234,6 +246,8 @@ class Client():
 			nick = fromHost(hostmask)
 			print '[%s] %s: %s' % (chan, nick, msg)
 			hookFire('chansay', {'hostmask':hostmask, 'nick':nick, 'msg':msg, 'chan':chan})
+			if self.botMode is True and msg.startswith(self.botPrefix):
+				hookFire('command', {'hostmask':hostmask, 'nick':nick, 'msg':msg, 'chan':chan})
 		
 		def kick(msg):
 			msg = msg.split(' ')
@@ -268,10 +282,11 @@ class Client():
 			print '[X]',l
 			line_type = l.strip().split(' ')
 			line = l.strip()
+			orig = l
 			if len(line_type) >= 2:
 				if line_type[1] == 'PRIVMSG':
 					msg(line)
-				elif line_type[0] == 'PING':
+				elif line_type[0] == 'PING' and self.autoPong is True:
 					self.c.write('PONG')
 				elif line_type[1] == '353':
 					names(line)
@@ -289,3 +304,6 @@ class Client():
 					kick(line)
 				elif line_type[1] == 'NICK':
 					nick(line)
+				elif orig.find('\x01'):
+					print True
+			
