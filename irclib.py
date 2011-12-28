@@ -123,6 +123,8 @@ class Connection():
 		self.host = self.getRandTag(tag)
 		self.real = self.getRandTag(tag)
 
+		self.disconnect = self.c.close
+
 	def startup(self, ret=False):
 		self.connect()
 		self.join()
@@ -147,13 +149,9 @@ class Connection():
 			x = self.c.recv(1024).strip()
 			if 'End of /MOTD' in x:
 				return True
-		
-	def disconnect(self): 
-		self.c.close()
 
 	def recv(self, bytes=1024): return self.c.recv(bytes)	
-	def write(self, content):
-		self.c.send('%s\r\n' % content)
+	def write(self, content): self.c.send('%s\r\n' % content)
 
 class Client():
 	def __init__(self, connection, rejoin=True):
@@ -165,7 +163,16 @@ class Client():
 		self.autoPong = True
 		self.botMode = False
 		self.botPrefix = '!'
+		self.maxLength = 100
+		self.printLines = True
 	
+	def niceList(self, seq, length=None):
+		'''Make a nice list!'''
+		if not length:
+			length = self.maxLength
+		ret = [seq[i:i+length] for i in range(0, len(seq), length)]
+		return ret
+			 
 	def send(self, chan, msg):
 		self.c.write('PRIVMSG %s :%s' % (chan, msg))
 	
@@ -183,6 +190,9 @@ class Client():
 
 	def setUserMode(self, user, channel, mode): pass
 	def setChanMode(self, channel, mode): pass
+
+	def niceParse(self):
+		parse(c.recv())
 
 	def parse(self, inp):
 		def names(msg):
@@ -282,7 +292,7 @@ class Client():
 
 		inp = inp.split('\r\n')
 		for l in inp:
-			print '[X]',l
+			if self.printLines is True: print '[X]',l
 			line_type = l.strip().split(' ')
 			line = l.strip()
 			orig = l
@@ -291,6 +301,7 @@ class Client():
 					msg(line)
 				elif line_type[0] == 'PING' and self.autoPong is True:
 					self.c.write('PONG')
+					hookFire('ping'), {'line':line}
 				elif line_type[1] == '353':
 					names(line)
 				elif line_type[1] == '332':
