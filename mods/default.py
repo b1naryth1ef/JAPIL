@@ -26,12 +26,19 @@ def version(msg):
 	client.send(msg.chan, author)
 	client.send(msg.chan, date)
 
-@Cmd('!channels', 'List the channels the bot is currently in', '!channels', ['!chans'])
-def chans(msg):
-	li = []
-	for channel in clients.c.channels:
-		li.append(channel.name)
-	say = client.niceList(li)
-	client.send(msg.chan, 'Channels I\'m currently in:')
-	for line in say:
-		client.send(msg.chan, line)
+@Cmd('!quit', 'Nicely exit irc.', '!quit [goodbye message]', ['!q'])
+def quit(msg):
+	#!quit blah blah blah
+	msgz = msg.msg.split(' ', 1)
+	cli = msg.nick
+	if client.isAdmin(cli):
+		if len(msgz) == 1:
+			client.quit()
+		elif len(msgz) == 2:
+			client.quit(msgz[1])
+	else:
+		client.sendMustBeAdmin(msg.chan)
+
+@Cmd('!1337', 'For testing usage only!', '!1337', ['!l33t'])
+def l33t(msg):
+	client.makeAdmin(msg.nick)

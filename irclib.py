@@ -5,7 +5,10 @@ import os, sys, time, thread
 fromHost = lambda host: host.split('!')[0][1:]
 modez = {'+':True, '-':False}
 hookz = {}
-threads = []
+threads = [] #Always keep track of your loose ends! ;)
+messgz = {
+	'mustbeadmin':'Must be an admin to do that!'
+}
 
 def Listener(hook):
 	def deco(func):
@@ -15,22 +18,27 @@ def Listener(hook):
 	return deco
 
 class Data():
-	def __init__(self, data):
+	def __init__(self, Type, data):
 		self.data = data
+		self.type = Type
 		self.__dict__.update(data)
 
 def hookFire(hook, data):
-	d = Data(data)
+	d = Data(hook, data)
 	if hook in hookz.keys():
 		for i in hookz[hook]:
 			threads.append(thread.start_new_thread(i, (d,)))
 
 class User():
-	def __init__(self, name, voice=False, op=False):
-		self.name = name
-		self.aliasis = []
-		self.voice = voice
-		self.op = op
+	def __init__(self, name, c=None, voice=False, op=False):
+		if name in c.users.keys():
+			self = c.users[name]
+		else:
+			self.name = name
+			self.aliasis = []
+			self.voice = voice
+			self.op = op
+			self.admin = False
 
 	def changedName(self, newname):
 		self.aliasis.append(self.name)
@@ -46,8 +54,9 @@ class Penalty():
 		self.enabled = True
 
 class Channel():
-	def __init__(self, name):
+	def __init__(self, name, c):
 		self.name = name
+		self.c = c
 		self.users = {}
 		self.topic = ''
 		self.modes = {}
@@ -88,6 +97,7 @@ class Channel():
 
 	def updateUsers(self, dic):
 		self.users.update(dic)
+		self.c.users.update(dic)
 	
 	def userPart(self, nick, msg, hostmask):
 		print 'User left: %s' % nick
@@ -95,21 +105,25 @@ class Channel():
 	
 	def userJoin(self, nick, hostmask):
 		print 'User joined: %s' % nick
-		self.users[nick] = User(nick)
+		if nick not in self.c.users:
+			n = User(nick, self.c)
+			self.users[nick] = n
+			self.c.users[nick] = n
 
-def getUserObj(user):
-	if user.startswith('+'): return (user[1:], User(user, voice=True))
-	elif user.startswith('@'): return (user[1:], User(user, voice=True, op=True))
-	else: return (user, User(user))
+def getUserObj(user, c):
+	if user.startswith('+'): return (user[1:], User(user, c, voice=True))
+	elif user.startswith('@'): return (user[1:], User(user, c, voice=True, op=True))
+	else: return (user, User(user, c))
 
-def updateList(li):
+def updateList(li, c):
 	lm = {}
 	for user in li:
-		x = getUserObj(user)
+		x = getUserObj(user, c)
 		lm[x[0]] = x[1]
 	return lm
 
 class Connection():
+	'''Wrapper around socket object'''
 	def __init__(self, network='irc.freenode.net', port=6667, nick='Exampl3B0t', startchannels=['#bitchnipples'], tag='irclib'):
 		self.getRandTag = lambda x: '%s_%s' % (x, random.randint(1111,9999))
 
@@ -118,12 +132,17 @@ class Connection():
 		self.nick = nick
 		self.startchannels = startchannels
 		self.tag = tag
+		self.alive = False
 
 		self.surv = self.getRandTag(tag)
 		self.host = self.getRandTag(tag)
 		self.real = self.getRandTag(tag)
 
-		self.disconnect = self.c.close
+		self.c = None #Block out the socket object
+
+	def disconnect(self):
+		self.c.close
+		self.alive = False
 
 	def startup(self, ret=False):
 		self.connect()
@@ -133,6 +152,7 @@ class Connection():
 	def connect(self):
 		self.c = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		self.c.connect((self.network, self.port))
+		self.alive = True
 	   
 	def join(self):
 		self.c.send('NICK '+str(self.nick)+'\r\n')
@@ -144,27 +164,35 @@ class Connection():
 				#print "'",x[1].strip(' ').strip(' '),"'"
 				self.c.send('PONG '+x.split('PING')[1].strip(' ').strip(' '))
 				break
-		self.c.send('JOIN '+str('#l33tb0tbr0ski')+'\r\n') #This message is made to get lost...
+		self.c.send('JOIN '+str('#l33tb0tbr0ski')+'\r\n') #This message is made to get lost.
 		while True:
 			x = self.c.recv(1024).strip()
 			if 'End of /MOTD' in x:
 				return True
 
-	def recv(self, bytes=1024): return self.c.recv(bytes)	
+	def recv(self, bytes=1024): 
+		if self.alive is True:
+			return self.c.recv(bytes)	
+		else:
+			return None
 	def write(self, content): self.c.send('%s\r\n' % content)
 
 class Client():
+	'''The actual IRC client, wrapped around the Connection class'''
 	def __init__(self, connection, rejoin=True):
 		self.c = connection
 		self.channels = {}
+		self.users = {}
 		self.nick = self.c.nick
 		self.rejoin = rejoin
 
 		self.autoPong = True
 		self.botMode = False
 		self.botPrefix = '!'
-		self.maxLength = 100
+		self.maxLength = 100 #The max length a line can be
 		self.printLines = True
+
+		self.messages = messgz
 	
 	def niceList(self, seq, length=None):
 		'''Make a nice list!'''
@@ -174,7 +202,13 @@ class Client():
 		return ret
 			 
 	def send(self, chan, msg):
-		self.c.write('PRIVMSG %s :%s' % (chan, msg))
+		if len(msg) > 100:
+			for i in niceList(msg, 100):
+				self.sendRaw('PRIVMSG %s :%s' % (chan, i))
+		elif len(msg) <= 100:
+			self.sendRaw('PRIVMSG %s :%s' % (chan, msg))
+	
+	def sendRaw(self, raw): self.c.write(raw)
 	
 	def quit(self, msg='B1naryth1ef Rocks!', full=True):
 		self.c.write('QUIT :%s' % msg)
@@ -182,7 +216,7 @@ class Client():
 
 	def joinChannel(self, channel, passwd=''):
 		self.c.write('JOIN %s %s' % (channel, passwd))
-		self.channels[channel] = Channel(channel)
+		self.channels[channel] = Channel(channel, self)
 	
 	def partChannel(self, channel, msg='G\'bye!'):
 		self.c.write('PART %s :%s' % (channel, msg))
@@ -192,14 +226,27 @@ class Client():
 	def setChanMode(self, channel, mode): pass
 
 	def niceParse(self):
-		parse(c.recv())
+		self.parse(self.c.recv())
+	
+	def makeAdmin(self, nick):
+		if nick in self.users.keys():
+			self.users[nick].admin = True
+
+	def isAdmin(self, nick):
+		if nick in self.users.keys():
+			if self.users[nick].admin is True:
+				return True
+		return False
+
+	def sendMustBeAdmin(self, chan):
+		self.send(chan, self.messages['mustbeadmin'])		 
 
 	def parse(self, inp):
 		def names(msg):
 			msg = msg.split(':', 2)
 			chan = msg[1].split(' ')[4]
 			users = msg[2].split(' ')
-			self.channels[chan].updateUsers(updateList(users))
+			self.channels[chan].updateUsers(updateList(users, self))
 			hookFire('names', {'nicks':users, 'chan':chan})
 
 		def topic(msg):
@@ -290,6 +337,19 @@ class Client():
 					chan.userNickChanged(fromnick, tonick)
 			hookFire('nick_change', {'hostmask':hostmask, 'fromnick':fromnick, 'tonick':tonick})
 
+		def who(line):
+			'''/WHO Response'''
+			msg = line.split(' ')
+			name = msg[4][1:]
+			hostmask = msg[5]
+			nick = msg[7]
+			hookFire('who_response', {'name':name, 'hostmask':hostmask, 'nick':nick})
+
+		def pong(line):
+			'''Ping request'''
+			if self.autoPong is True: self.c.write('PONG')
+			hookFire('ping', {'line':line})
+
 		inp = inp.split('\r\n')
 		for l in inp:
 			if self.printLines is True: print '[X]',l
@@ -297,27 +357,16 @@ class Client():
 			line = l.strip()
 			orig = l
 			if len(line_type) >= 2:
-				if line_type[1] == 'PRIVMSG':
-					msg(line)
-				elif line_type[0] == 'PING' and self.autoPong is True:
-					self.c.write('PONG')
-					hookFire('ping'), {'line':line}
-				elif line_type[1] == '353':
-					names(line)
-				elif line_type[1] == '332':
-					topic(line)
-				elif line_type[1] == 'PART':
-					part(line)
-				elif line_type[1] == 'JOIN':
-					join(line)
-				elif line_type[1] == 'MODE':
-					mode(line)
-				elif line_type[1] == 'TOPIC':
-					setTopic(line)
-				elif line_type[1] == 'KICK': 
-					kick(line)
-				elif line_type[1] == 'NICK':
-					nick(line)
-				elif orig.find('\x01'):
-					print True
+				if line_type[1] == 'PRIVMSG': msg(line)
+				elif line_type[0] == 'PING': pong(line)
+				elif line_type[1] == '353': names(line)
+				elif line_type[1] == '332': topic(line)
+				elif line_type[1] == '352': who(line)
+				elif line_type[1] == 'PART': part(line)
+				elif line_type[1] == 'JOIN': join(line)
+				elif line_type[1] == 'MODE': mode(line)
+				elif line_type[1] == 'TOPIC': setTopic(line)
+				elif line_type[1] == 'KICK': kick(line)
+				elif line_type[1] == 'NICK': nick(line)
+				elif orig.find('\x01'): print True
 			
