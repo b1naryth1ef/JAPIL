@@ -7,6 +7,8 @@ threads = []
 aliass = {}
 commands = {}
 
+alive = True
+
 class Command():
 	def __init__(self, cmd, exe, desc, usage, alias):
 		self.cmd = cmd
@@ -22,6 +24,9 @@ def Cmd(cmd, desc, usage, alias=[]):
 	def deco(func):
 		print 'Called'
 		commands[cmd] = Command(cmd, func, desc, usage, alias)
+		func.usage = usage
+		func.description = desc
+		func.command = cmd
 		return func
 	return deco
 
@@ -37,17 +42,20 @@ def RequireAdmin(func):
 def cmdParser(obj):
 	i = obj.msg.split(' ')[0]
 	print 'Command Fire: %s' % i
+	print client.users
 	if i in commands:
 		threads.append(thread.start_new_thread(commands[i].exe, (obj,)))
 	elif i in aliass:
 		threads.append(thread.start_new_thread(commands[aliass[i]].exe, (obj,)))
 
 def loop():
-	while True:
+	global alive
+	while alive is True:
 		client.parse(conn.recv())
 
 def init():
 	global conn, client
+
 	conn = Connection(network='irc.quakenet.org').startup(True)
 	client = Client(conn)
 	client.joinChannel('#bitchnipples')

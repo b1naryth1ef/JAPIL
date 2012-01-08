@@ -34,6 +34,7 @@ class User():
 		if name in c.users.keys():
 			self = c.users[name]
 		else:
+			c.users[name] = self
 			self.name = name
 			self.aliasis = []
 			self.voice = voice
@@ -57,20 +58,25 @@ class Channel():
 	def __init__(self, name, c):
 		self.name = name
 		self.c = c
-		self.users = {}
+		self.users = []
 		self.topic = ''
 		self.modes = {}
 		self.penalties = {}
 
 	def hasUser(self, user):
-		if user in self.users.keys(): return True
+		if user in self.users: return True
 		else: return False
 
 	def userNickChanged(self, user, newnick):
-		old = self.users[user]
-		old.changedName(newnick)
-		self.users[newnick] = old
-		del self.users[user]
+		# old = self.users[user]
+		# old.changedName(newnick)
+		# self.users[newnick] = old
+		# del self.users[user]
+		self.users.remove(user)
+		self.users.append(newnick)
+		self.c.users[user].changedName(newnick)
+		self.c.users[newnick] = self.c.users[user]
+		del self.c.users[user]
 
 	def addPenalty(self, user, penalty):
 		if user in self.penalties.keys(): self.penalties[user].append(penalty)
@@ -91,24 +97,24 @@ class Channel():
 		elif mode[1:] == 'b' and mode[1:] == '+':
 			self.penalties[user].enabled = False
 		elif mode[1:] == 'v':
-			self.users[user].voice = modez[mode[:1]]
+			self.c.users[user].voice = modez[mode[:1]]
 		elif mode[1:] == 'o':
-			self.users[user].voice = modez[mode[:1]]
+			self.c.users[user].voice = modez[mode[:1]]
 
-	def updateUsers(self, dic):
-		self.users.update(dic)
-		self.c.users.update(dic)
+	def updateUsers(self, li):
+		for i in li:
+			if i not in self.users:
+				self.users.append(i)
 	
 	def userPart(self, nick, msg, hostmask):
-		print 'User left: %s' % nick
-		del self.users[nick]
+		print 'User left %s: %s' % (self.name, nick)
+		self.users.remove(nick)
 	
 	def userJoin(self, nick, hostmask):
-		print 'User joined: %s' % nick
+		print 'User joined %s: %s' % (self.name, nick)
 		if nick not in self.c.users:
-			n = User(nick, self.c)
-			self.users[nick] = n
-			self.c.users[nick] = n
+			self.c.users[nick] = User(nick, self.c)
+			self.users.append(nick)
 
 def getUserObj(user, c):
 	if user.startswith('+'): return (user[1:], User(user, c, voice=True))
@@ -116,10 +122,9 @@ def getUserObj(user, c):
 	else: return (user, User(user, c))
 
 def updateList(li, c):
-	lm = {}
+	lm = []
 	for user in li:
-		x = getUserObj(user, c)
-		lm[x[0]] = x[1]
+		lm.append(getUserObj(user, c)[0])
 	return lm
 
 class Connection():
@@ -182,6 +187,7 @@ class Client():
 	def __init__(self, connection, rejoin=True):
 		self.c = connection
 		self.channels = {}
+		self.badchannels = []
 		self.users = {}
 		self.nick = self.c.nick
 		self.rejoin = rejoin
@@ -214,6 +220,18 @@ class Client():
 		self.c.write('QUIT :%s' % msg)
 		if full is True: self.c.disconnect()
 
+	def canJoin(self, channel):
+		if channel not in self.channels.keys() and channel not in self.badchannels:
+			return True
+		return False
+	
+	def isClientOp(self): return self.users[self.nick].op
+
+	def inChannel(self, channel):
+		if channel in self.channels.keys():
+			return True
+		return False
+
 	def joinChannel(self, channel, passwd=''):
 		self.c.write('JOIN %s %s' % (channel, passwd))
 		self.channels[channel] = Channel(channel, self)
@@ -231,6 +249,14 @@ class Client():
 	def makeAdmin(self, nick):
 		if nick in self.users.keys():
 			self.users[nick].admin = True
+			return True
+		return False
+
+	def removeAdmin(self, nick):
+		if nick in self.users.keys():
+			self.users[nick].admin = False
+			return True
+		return False
 
 	def isAdmin(self, nick):
 		if nick in self.users.keys():
@@ -261,8 +287,9 @@ class Client():
 			chan = msg[2]
 			pmsg = msg[3][1:]
 			nick = fromHost(hostmask)
-			self.channels[chan].userPart(nick, pmsg, hostmask)
-			hookFire('part', {'hostmask':hostmask, 'nick':nick, 'msg':pmsg, 'chan':chan})
+			if nick != self.nick:
+				self.channels[chan].userPart(nick, pmsg, hostmask)
+				hookFire('part', {'hostmask':hostmask, 'nick':nick, 'msg':pmsg, 'chan':chan})
 
 		def join(msg):
 			msg = msg.split(' ')
@@ -349,8 +376,10 @@ class Client():
 			'''Ping request'''
 			if self.autoPong is True: self.c.write('PONG')
 			hookFire('ping', {'line':line})
-
-		inp = inp.split('\r\n')
+		if inp != None:
+			inp = inp.split('\r\n')
+		else:
+			return None
 		for l in inp:
 			if self.printLines is True: print '[X]',l
 			line_type = l.strip().split(' ')
