@@ -1,4 +1,4 @@
-from example import Cmd, client
+from example import Cmd, client, Require
 from subprocess import *
 
 byelist = ["I'm gonna go party somewhere else...", 
@@ -26,18 +26,20 @@ def version(msg):
 	client.send(msg.chan, author)
 	client.send(msg.chan, date)
 
+@RequireAdmin
 @Cmd('!quit', 'Nicely exit irc.', '!quit [goodbye message]', ['!q'])
 def quit(msg):
 	#!quit blah blah blah
 	msgz = msg.msg.split(' ', 1)
 	cli = msg.nick
-	if client.isAdmin(cli):
+	#if client.isAdmin(cli):
+	if 1==1:
 		if len(msgz) == 1:
 			client.quit()
 		elif len(msgz) == 2:
 			client.quit(msgz[1])
-	else:
-		client.sendMustBeAdmin(msg.chan)
+	# else:
+	# 	client.sendMustBeAdmin(msg.chan)
 
 @Cmd('!1337', 'For testing usage only!', '!1337', ['!l33t'])
 def l33t(msg):

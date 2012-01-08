@@ -24,6 +24,14 @@ def Cmd(cmd, desc, usage, alias=[]):
 		commands[cmd] = Command(cmd, func, desc, usage, alias)
 		return func
 	return deco
+
+def RequireAdmin(func):
+	def deco(msg):
+		if client.isAdmin(msg.nick):
+			return func(msg)
+		else:
+			return client.sendMustBeAdmin(msg.chan)
+	return deco
 	
 @Listener('command')
 def cmdParser(obj):
