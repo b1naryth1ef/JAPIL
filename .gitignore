@@ -1,3 +1,4 @@
 *.pyc
 *~
 *test*
+.DS_Store
