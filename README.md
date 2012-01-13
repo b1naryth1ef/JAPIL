@@ -6,6 +6,7 @@ JAPIL is a simple, easy to use/implement Python IRC Library, with support for th
 * Threading
 * Hooks/Events
 * Auto-pong
+* User/Channel concurrency
 * And more!
 
 ## Example
@@ -17,5 +18,11 @@ JAPIL is a simple, easy to use/implement Python IRC Library, with support for th
 	client = Client(conn) #Create a new client object
 	client.joinChannel('#nubsybubsy') #Join a channel
 
+	@Listener('join')
+	def onjoin(obj):
+		print 'User Joined:', obj.nick
+
 	while True:
 		client.niceParse() #Starts conn.recv() and parseing lines...
+
+Not sold? It even comes with an (awesome) example IRC Bot!

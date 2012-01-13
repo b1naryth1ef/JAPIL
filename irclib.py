@@ -36,20 +36,16 @@ def niceName(name):
 	return name
 
 class User():
-	def __init__(self, name, c=None, voice=False, op=False):
-		if name in c.users.keys():
-			self = c.users[name]
-		else:
-			c.users[niceName(name)] = self
-			self.name = name
-			self.aliasis = []
-			self.voice = voice
-			self.op = op
-			self.admin = False
+	def __init__(self, nick):
+		self.nick =  niceName(nick)
+		self.admin = False
+		self.aliasis = []
 
-	def changedName(self, newname):
-		self.aliasis.append(self.name)
-		self.name = newname
+		self.channels = {}
+	
+	def changeNick(self, newnick):
+		self.aliasis.append(self.nick)
+		self.nick = newnick
 
 class Penalty():
 	def __init__(self, user, reason, byuser, Type):
@@ -64,74 +60,72 @@ class Channel():
 	def __init__(self, name, c):
 		self.name = name
 		self.c = c
-		self.users = []
+		self.users = {} #(OBJ, VOICE, OP)
 		self.topic = ''
 		self.modes = {}
 		self.penalties = {}
+
+	def op(self, user): self.c.sendRaw('MODE %s +o %s' % (self.name, user)) #once recheckPerms() is implemented, check if user is op
+
+	def deop(self, user): self.c.sendRaw('MODE %s -o %s' % (self.name, user)) #same as above
 
 	def hasUser(self, user):
 		if user in self.users: return True
 		else: return False
 
-	def userNickChanged(self, user, newnick):
-		# old = self.users[user]
-		# old.changedName(newnick)
-		# self.users[newnick] = old
-		# del self.users[user]
-		self.users.remove(user)
-		self.users.append(newnick)
-		self.c.users[user].changedName(newnick)
-		self.c.users[newnick] = self.c.users[user]
-		del self.c.users[user]
+	def userIsOp(self, user): return self.users[user][2]
+	def userIsVoiced(self, user): return self.users[user][1]
+
+	def userNickChanged(self, oldnick, newnick):
+		self.users[newnick] = self.users[oldnick]
+		del self.users[oldnick]
 
 	def addPenalty(self, user, penalty):
 		if user in self.penalties.keys(): self.penalties[user].append(penalty)
 		else: self.penalties[user] = [penalty]
 
-	def userKicked(self, user, byuser, reason):
-		self.addPenalty(user, Penalty(user, None, reason, byuser, 'kick'))
+	def userKicked(self, user, byuser, reason): self.addPenalty(user, Penalty(user, None, reason, byuser, 'kick'))
 
-	def setTopic(self, topic, user):
-		self.topic = topic
+	def setTopic(self, topic, user): self.topic = topic
 	
-	def setMode(self, mode, user): 
-		self.modes[mode[1:]] = modez[mode[:1]]
+	def setMode(self, mode, user): self.modes[mode[1:]] = modez[mode[:1]]
 
 	def setUserMode(self, mode, user, byuser): 
-		if mode[1:] == 'b' and mode[1:] == '+':
+		if mode[1:] == 'b' and mode[:1] == '+':
 			self.addPenalty(user, Penalty(user, reason, byuser, 'ban'))
-		elif mode[1:] == 'b' and mode[1:] == '+':
-			self.penalties[user].enabled = False
+		elif mode[1:] == 'b' and mode[:1] == '-':
+			for pen in self.penalties[user]:
+				if pen.type is 'ban':
+					pen.enabled = False
 		elif mode[1:] == 'v':
-			self.c.users[user].voice = modez[mode[:1]]
+			self.users[user][1] = modez[mode[:1]]
 		elif mode[1:] == 'o':
-			self.c.users[user].voice = modez[mode[:1]]
+			self.users[user][2] = modez[mode[:1]]
+
+	def recheckPerms(self):
+		#Eventually pull a user list recheck voice/op
+		for i in self.users.values():
+			i = i[0]
+			if self.name not in i.channels:
+				i.channels[self.name] = self
 
 	def updateUsers(self, li):
 		for i in li:
-			if i not in self.users:
-				self.users.append(i)
+			if i not in self.c.users and i not in self.users:
+				self.c.users[i] = User(i)
+			self.users[i] = [self.c.users[i], False, False]
+			self.recheckPerms()
 	
 	def userPart(self, nick, msg, hostmask):
 		print 'User left %s: %s' % (self.name, nick)
-		self.users.remove(nick)
+		del self.users[nick]
 	
 	def userJoin(self, nick, hostmask):
 		print 'User joined %s: %s' % (self.name, nick)
 		if nick not in self.c.users:
-			self.c.users[nick] = User(nick, self.c)
-			self.users.append(nick)
-
-def getUserObj(user, c):
-	if user.startswith('+'): return (user[1:], User(user, c, voice=True))
-	elif user.startswith('@'): return (user[1:], User(user, c, voice=True, op=True))
-	else: return (user, User(user, c))
-
-def updateList(li, c):
-	lm = []
-	for user in li:
-		lm.append(getUserObj(user, c)[0])
-	return lm
+			self.c.users[nick] = User(nick)
+		self.users[nick] = [self.c.users[nick], False, False]
+		self.recheckPerms()
 
 class Connection():
 	'''Wrapper around socket object'''
@@ -207,17 +201,27 @@ class Client():
 		self.messages = messgz
 
 	def opUser(self, user, channel=None):
-		i = []
 		if channel is None:
-			for chan in self.channels:
-				if user in self.channels.users:
-					i.append(user)
-			if len(i) == 1:
-				channel = i[0]
-			else:
-				return False
-		self.sendRaw('MODE %s +o %s' % (channel, user))
-		return True
+			for chan in self.users[user].channels:
+				if self.channels[chan].isUserOp(self.nick):
+					self.sendRaw('MODE %s +o %s' % (chan, user)) #use chan.op()
+			return True
+		else:
+			if channel in self.users[user].channels:
+				self.sendRaw('MODE %s +o %s' % (channel, user))
+				return True
+		return False
+
+	def deopUser(self, user, channel=None):
+		if channel is None:
+			for chan in self.users[user].channels:
+				if self.channels[chan].isUserOp(self.nick): #CHANGE THIS TO isClientOp()
+					print self.channels[chan].deop(user)
+			return True
+		elif channel in self.users[user].channels:
+			self.channels[channel].deop(user)
+			return True
+		return False
 	
 	def niceList(self, seq, length=None):
 		'''Make a nice list!'''
@@ -226,25 +230,19 @@ class Client():
 		ret = [seq[i:i+length] for i in range(0, len(seq), length)]
 		return ret
 			 
-	def send(self, chan, msg):
-		if len(msg) > 100:
-			for i in niceList(msg, 100):
-				self.sendRaw('PRIVMSG %s :%s' % (chan, i))
-		elif len(msg) <= 100:
-			self.sendRaw('PRIVMSG %s :%s' % (chan, msg))
+	def send(self, chan, msg): self.sendRaw('PRIVMSG %s :%s' % (chan, msg))
 	
 	def sendRaw(self, raw): self.c.write(raw)
 	
-	def quit(self, msg='B1naryth1ef Rocks!', full=True):
-		self.c.write('QUIT :%s' % msg)
-		if full is True: self.c.disconnect()
+	def quit(self, msg='B1naryth1ef Rocks!'): self.c.write('QUIT :%s' % msg)
 
 	def canJoin(self, channel):
 		if channel not in self.channels.keys() and channel not in self.badchannels:
 			return True
 		return False
 	
-	def isClientOp(self): return self.users[self.nick].op
+	def isClientOp(self, channel): return self.channels[channel].users[self.nick][2]
+	def isClientVoiced(self, channel): return self.channels[channel].users[self.nick][1]
 
 	def inChannel(self, channel):
 		if channel in self.channels.keys():
@@ -252,12 +250,14 @@ class Client():
 		return False
 
 	def joinChannel(self, channel, passwd=''):
-		self.c.write('JOIN %s %s' % (channel, passwd))
-		self.channels[channel] = Channel(channel, self)
+		if not self.inChannel(channel):
+			self.c.write('JOIN %s %s' % (channel, passwd))
+			self.channels[channel] = Channel(channel, self)
 	
 	def partChannel(self, channel, msg='G\'bye!'):
-		self.c.write('PART %s :%s' % (channel, msg))
-		del self.channels[channel]
+		if self.inChannel(channel):
+			self.c.write('PART %s :%s' % (channel, msg))
+			del self.channels[channel]
 
 	def setUserMode(self, user, channel, mode): pass
 	def setChanMode(self, channel, mode): pass
@@ -266,17 +266,11 @@ class Client():
 		self.parse(self.c.recv())
 	
 	def makeAdmin(self, nick):
-		x = False
+		print self.users
 		if nick in self.users.keys():
 			self.users[nick].admin = True
-			x = True
-		elif '@'+nick in self.users.keys():
-			self.users['@'+nick].admin = True
-			x = True
-		elif '+'+nick in self.users.keys():
-			self.users['+'+nick].admin = True
-			x = True
-		return x
+			return True
+		return False
 
 	def removeAdmin(self, nick):
 		if nick in self.users.keys():
@@ -285,7 +279,7 @@ class Client():
 		return False
 
 	def isAdmin(self, nick):
-		if niceName(nick) in self.users.keys():
+		if nick in self.users.keys():
 			if self.users[nick].admin is True:
 				return True
 		return False
@@ -300,8 +294,11 @@ class Client():
 			msg = msg.split(':', 2)
 			chan = msg[1].split(' ')[4]
 			users = msg[2].split(' ')
-			self.channels[chan].updateUsers(updateList(users, self))
-			hookFire('names', {'nicks':users, 'chan':chan})
+			names = []
+			for i in users:
+				names.append(niceName(i))
+			self.channels[chan].updateUsers(names)
+			hookFire('names', {'nicks':names, 'chan':chan})
 
 		def topic(msg):
 			msg = msg.split(':', 2)
@@ -313,7 +310,8 @@ class Client():
 			msg = msg.split(' ')
 			hostmask = msg[0]
 			chan = msg[2]
-			pmsg = msg[3][1:]
+			if len(msg) == 4: pmsg = msg[3][1:]
+			else: pmsg = None
 			nick = fromHost(hostmask)
 			if nick != self.nick:
 				self.channels[chan].userPart(nick, pmsg, hostmask)
@@ -339,7 +337,7 @@ class Client():
 					self.channels[chan].setMode(mode, fromuser)
 					hookFire('channelmode', {'hostmask':hostmask, 'fromnick':fromuser, 'mode':mode})
 			elif len(msg) >= 5: #User Mode
-				touser = msg[4]
+				touser = niceName(msg[4])
 				mode = msg[3]
 				self.channels[chan].setUserMode(mode, touser, fromuser)
 				hookFire('usermode', {'fromnick':fromuser, 'tonick':touser, 'mode':mode, 'chan':chan})
@@ -373,7 +371,7 @@ class Client():
 			hostmask = msg[0]
 			chan = msg[2]
 			fromnick = fromHost(hostmask)
-			nick = msg[3]
+			nick = niceName(msg[3])
 			reason = msg[4][1:]
 			if reason == nick:
 				reason = 'none given'
@@ -390,7 +388,7 @@ class Client():
 			msg = msg.split(' ')
 			hostmask = msg[0]
 			fromnick = fromHost(hostmask)
-			tonick = msg[2][1:]
+			tonick = niceName(msg[2][1:])
 			for chan in self.channels.values():
 				if chan.hasUser(fromnick):
 					chan.userNickChanged(fromnick, tonick)
@@ -401,7 +399,7 @@ class Client():
 			msg = line.split(' ')
 			name = msg[4][1:]
 			hostmask = msg[5]
-			nick = msg[7]
+			nick = niceName(msg[7])
 			hookFire('who_response', {'name':name, 'hostmask':hostmask, 'nick':nick})
 
 		def pong(line):
@@ -418,6 +416,7 @@ class Client():
 			line = l.strip()
 			orig = l
 			if len(line_type) >= 2:
+				print '>>>>',line_type[1]
 				if line_type[1] == 'PRIVMSG': msg(line)
 				elif line_type[0] == 'PING': pong(line)
 				elif line_type[1] == '353': names(line)
