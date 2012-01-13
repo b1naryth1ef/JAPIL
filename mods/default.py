@@ -1,4 +1,4 @@
-from example import Cmd, client, RequireAdmin
+from example import Cmd, client, RequireAdmin, RequireBotOp
 from subprocess import *
 import random, sys, os
 
@@ -43,6 +43,26 @@ def quit(msg):
 @Cmd('!1337', 'For testing usage only!', '!1337', ['!l33t'])
 def l33t(msg):
 	print 'Making admin:',client.makeAdmin(msg.nick)
+
+@Cmd('!opme', 'You\'ve been good! Take an OP!', '!opme')
+@RequireAdmin
+@RequireBotOp
+def opmeCmd(msg):
+	msz = msg.msg.split(' ')
+	if len(msz) == 1:
+		client.opUser(msg.nick, msg.chan)
+	else:
+		client.send(msg.chan, 'Usage: ', opmeCmd.usage)
+
+@Cmd('!op', 'Op a user', '!op <user>')
+@RequireAdmin
+@RequireBotOp
+def opCmd(msg):
+	msz = msg.msg.split(' ')
+	if len(msz) == 2:
+		client.opUser(msz[1], msg.chan)
+	else:
+		client.send(msg.chan, 'Usage: ', opCmd.usage)
 
 @Cmd('!addadmin', 'Add an admin.', '!addadmin <user>')
 @RequireAdmin
