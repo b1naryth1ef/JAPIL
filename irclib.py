@@ -7,7 +7,8 @@ modez = {'+':True, '-':False}
 hookz = {}
 threads = [] #Always keep track of your loose ends! ;)
 messgz = {
-	'mustbeadmin':'Must be an admin to do that!'
+	'mustbeadmin':'Must be an admin to do that!',
+	'botmustbeop':'The bot must be an op to do that!'
 }
 
 def Listener(hook):
@@ -29,12 +30,17 @@ def hookFire(hook, data):
 		for i in hookz[hook]:
 			threads.append(thread.start_new_thread(i, (d,)))
 
+def niceName(name):
+	if name.startswith('@') or name.startswith('+'):
+		return name[1:]
+	return name
+
 class User():
 	def __init__(self, name, c=None, voice=False, op=False):
 		if name in c.users.keys():
 			self = c.users[name]
 		else:
-			c.users[name] = self
+			c.users[niceName(name)] = self
 			self.name = name
 			self.aliasis = []
 			self.voice = voice
@@ -199,6 +205,19 @@ class Client():
 		self.printLines = True
 
 		self.messages = messgz
+
+	def opUser(self, user, channel=None):
+		i = []
+		if channel is None:
+			for chan in self.channels:
+				if user in self.channels.users:
+					i.append(user)
+			if len(i) == 1:
+				channel = i[0]
+			else:
+				return False
+		self.sendRaw('MODE %s +o %s' % (channel, user))
+		return True
 	
 	def niceList(self, seq, length=None):
 		'''Make a nice list!'''
@@ -247,10 +266,17 @@ class Client():
 		self.parse(self.c.recv())
 	
 	def makeAdmin(self, nick):
+		x = False
 		if nick in self.users.keys():
 			self.users[nick].admin = True
-			return True
-		return False
+			x = True
+		elif '@'+nick in self.users.keys():
+			self.users['@'+nick].admin = True
+			x = True
+		elif '+'+nick in self.users.keys():
+			self.users['+'+nick].admin = True
+			x = True
+		return x
 
 	def removeAdmin(self, nick):
 		if nick in self.users.keys():
@@ -259,13 +285,15 @@ class Client():
 		return False
 
 	def isAdmin(self, nick):
-		if nick in self.users.keys():
+		if niceName(nick) in self.users.keys():
 			if self.users[nick].admin is True:
 				return True
 		return False
 
 	def sendMustBeAdmin(self, chan):
-		self.send(chan, self.messages['mustbeadmin'])		 
+		self.send(chan, self.messages['mustbeadmin'])	
+	def sendClientMustBeOp(self, chan):
+		self.send(chan, self.messages['botmustbeop'])	 
 
 	def parse(self, inp):
 		def names(msg):
@@ -332,7 +360,11 @@ class Client():
 			msg = msg[3][1:]
 			nick = fromHost(hostmask)
 			print '[%s] %s: %s' % (chan, nick, msg)
-			hookFire('chansay', {'hostmask':hostmask, 'nick':nick, 'msg':msg, 'chan':chan})
+			if chan == self.nick:
+				chan = nick
+				hookFire('privsay', {'hostmask':hostmask, 'nick':nick, 'msg':msg, 'chan':chan})
+			else:
+				hookFire('chansay', {'hostmask':hostmask, 'nick':nick, 'msg':msg, 'chan':chan})
 			if self.botMode is True and msg.startswith(self.botPrefix):
 				hookFire('command', {'hostmask':hostmask, 'nick':nick, 'msg':msg, 'chan':chan})
 		
