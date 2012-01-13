@@ -1,11 +1,13 @@
 from irclib import Connection, Client, Listener
-import thread
+import thread, time
 
-mods = ['default']
+mods = ['default', 'dj']
+modfiles = []
 
 threads = []
 aliass = {}
 commands = {}
+adys = ['B1|Irssi', 'B1|Phone', 'B1naryTh1ef']
 
 alive = True
 
@@ -22,7 +24,6 @@ class Command():
 
 def Cmd(cmd, desc, usage, alias=[]):
 	def deco(func):
-		print 'Called'
 		commands[cmd] = Command(cmd, func, desc, usage, alias)
 		func.usage = usage
 		func.description = desc
@@ -37,16 +38,35 @@ def RequireAdmin(func):
 		else:
 			return client.sendMustBeAdmin(msg.chan)
 	return deco
+
+def RequireBotOp(func):
+	def deco(msg):
+		if client.isClientOp(msg.chan):
+			return func(msg)
+		else:
+			return client.sendClientMustBeOp(msg.chan)
+	return deco
 	
 @Listener('command')
 def cmdParser(obj):
 	i = obj.msg.split(' ')[0]
 	print 'Command Fire: %s' % i
-	print client.users
 	if i in commands:
 		threads.append(thread.start_new_thread(commands[i].exe, (obj,)))
 	elif i in aliass:
 		threads.append(thread.start_new_thread(commands[aliass[i]].exe, (obj,)))
+
+@Listener('join')
+def cmdParser(obj):
+	if obj.nick == client.nick:
+		time.sleep(5) #Wait to get NICKS message
+		for admin in adys:
+		 	print admin, client.makeAdmin(admin)
+		for chan in client.channels.values():
+		 	if admin in chan.users.keys() and client.isAdmin(admin):
+		 		client.opUser(admin)
+	elif client.users[obj.nick].admin is True:
+		client.opUser(obj.nick, obj.chan)
 
 def loop():
 	global alive
@@ -62,6 +82,8 @@ def init():
 	client.botMode = True
 
 	for i in mods:
-		__import__('mods.'+i)
+		modfiles.append(__import__('mods.'+i))
+	# for i in modfiles:
+	# 	threads.append(thread.start_new_thread(i.init()))
 	
 	loop()

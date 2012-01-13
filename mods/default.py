@@ -51,6 +51,7 @@ def opmeCmd(msg):
 	msz = msg.msg.split(' ')
 	if len(msz) == 1:
 		client.opUser(msg.nick, msg.chan)
+		client.send(msg.chan, '%s: Well hello there you sexy beast! About time you had OP...' % msg.nick)
 	else:
 		client.send(msg.chan, 'Usage: ', opmeCmd.usage)
 
@@ -63,6 +64,16 @@ def opCmd(msg):
 		client.opUser(msz[1], msg.chan)
 	else:
 		client.send(msg.chan, 'Usage: ', opCmd.usage)
+
+@Cmd('!deop', 'Deop a user', '!deop <user>')
+@RequireAdmin
+@RequireBotOp
+def opCmd(msg):
+	msz = msg.msg.split(' ')
+	if len(msz) == 2:
+		client.deopUser(msz[1], msg.chan)
+	else:
+		client.send(msg.chan, 'Usage: ', deopCmd.usage)
 
 @Cmd('!addadmin', 'Add an admin.', '!addadmin <user>')
 @RequireAdmin
@@ -106,4 +117,4 @@ def partChan(msg):
 		else: client.send(msg.chan, 'Can\'t part channel %s, not in it.' % msz[1])
 	else: client.send(msg.chan, 'Usage: ', partChan.usage)
 
-
+def init(): pass
