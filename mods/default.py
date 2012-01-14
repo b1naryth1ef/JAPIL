@@ -117,4 +117,18 @@ def partChan(msg):
 		else: client.send(msg.chan, 'Can\'t part channel %s, not in it.' % msz[1])
 	else: client.send(msg.chan, 'Usage: ', partChan.usage)
 
+@Cmd('!kick', 'Kick a user from the channel', '!kick <user> [reason] (must be sent from channel)', ['!k'])
+@RequireAdmin
+@RequireBotOp
+def cmdKick(obj):
+	msg = obj.msg.split(' ', 2)
+	if len(msg) == 2 and obj.chan != client.nick:
+		client.sendRaw('KICK %s %s' % (obj.chan, msg[1]))
+		client.send(msg.chan, 'Kicked %s from %s.' % (msg[1], obj.chan)
+	elif len(msg) == 3 and obj.chan != client.nick:
+		client.sendRaw('KICK %s %s :%s' % (obj.chan, msg[1], msg[2]))
+		client.send(msg.chan, 'Kicked %s from %s for %s.' % (msg[1], obj.chan, msg[2]))
+	else:
+		client.send(msg.chan, 'Usage: ', cmdKick.usage)
+
 def init(): pass

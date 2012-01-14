@@ -85,8 +85,10 @@ def init():
 	client.botMode = True
 
 	for i in mods:
-		modfiles.append(__import__('mods.'+i))
-	# for i in modfiles:
-	# 	threads.append(thread.start_new_thread(i.init()))
-	
+		__import__('mods.'+i)
+		try:
+			i = sys.modules['mods.'+i]
+			threads.append(thread.start_new_thread(i.init()))
+		except Exception, e:
+			print 'MODULE ERROR: Please add the function init() to your module.'
 	loop()
