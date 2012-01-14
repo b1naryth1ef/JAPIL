@@ -203,7 +203,7 @@ class Client():
 	def opUser(self, user, channel=None):
 		if channel is None:
 			for chan in self.users[user].channels:
-				if self.channels[chan].isUserOp(self.nick):
+				if self.channels[chan].userIsOp(self.nick):
 					self.sendRaw('MODE %s +o %s' % (chan, user)) #use chan.op()
 			return True
 		else:
@@ -411,7 +411,7 @@ class Client():
 		else:
 			return None
 		for l in inp:
-			if self.printLines is True: print '[X]',l
+			if self.printLines is True and l not in [None, '', '\r\n']: print '[X]',l
 			line_type = l.strip().split(' ')
 			line = l.strip()
 			orig = l

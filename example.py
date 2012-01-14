@@ -67,6 +67,9 @@ def cmdParser(obj):
 		 		client.opUser(admin)
 	elif client.users[obj.nick].admin is True:
 		client.opUser(obj.nick, obj.chan)
+	if obj.nick in adys:
+		client.makeAdmin(adys)
+		client.opUser(obj.nick)
 
 def loop():
 	global alive
