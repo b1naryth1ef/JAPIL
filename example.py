@@ -1,7 +1,7 @@
 from irclib import Connection, Client, Listener
 import thread, time, sys
 
-version = 0.1
+version = 0.2
 mods = ['default', 'dj', 'github']
 modfiles = []
 
