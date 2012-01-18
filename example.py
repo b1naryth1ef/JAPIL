@@ -1,7 +1,7 @@
 from irclib import Connection, Client, Listener
-import thread, time
+import thread, time, sys
 
-mods = ['default', 'dj']
+mods = ['default', 'dj', 'github']
 modfiles = []
 
 threads = []
@@ -79,7 +79,7 @@ def loop():
 def init():
 	global conn, client
 
-	conn = Connection(network='irc.quakenet.org').startup(True)
+	conn = Connection(network='irc.quakenet.org', nick='Broskz').startup(True)
 	client = Client(conn)
 	client.joinChannel('#bitchnipples')
 	client.botMode = True
@@ -88,7 +88,7 @@ def init():
 		__import__('mods.'+i)
 		try:
 			i = sys.modules['mods.'+i]
-			threads.append(thread.start_new_thread(i.init()))
+			threads.append(thread.start_new_thread(i.init, ()))
 		except Exception, e:
-			print 'MODULE ERROR: Please add the function init() to your module.'
+			print 'MODULE ERROR: Please add the function init() to your module.[', e, ']'
 	loop()

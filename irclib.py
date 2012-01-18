@@ -1,5 +1,5 @@
 import socket, thread, random, re
-import os, sys, time, thread
+import os, sys, time, thread, time
 
 #LAMBDAZ!
 fromHost = lambda host: host.split('!')[0][1:]

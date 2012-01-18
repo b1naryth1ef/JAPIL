@@ -1,7 +1,7 @@
 from example import Cmd, client, RequireAdmin, RequireBotOp
 import xml.etree.ElementTree as et
 import xml.dom.minidom
-import random, sys, os
+import random, sys, os, time
 
 dj_STATUS = False
 dj_SPAM = False
