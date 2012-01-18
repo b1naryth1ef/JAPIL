@@ -84,7 +84,7 @@ class Channel():
 		if user in self.penalties.keys(): self.penalties[user].append(penalty)
 		else: self.penalties[user] = [penalty]
 
-	def userKicked(self, user, byuser, reason): self.addPenalty(user, Penalty(user, None, reason, byuser, 'kick'))
+	def userKicked(self, user, byuser, reason): self.addPenalty(user, Penalty(user, reason, byuser, 'kick'))
 
 	def setTopic(self, topic, user): self.topic = topic
 	
