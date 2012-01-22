@@ -77,6 +77,6 @@ def init():
 				if len(repo.old[i]) != 0 and len(repo.new[i]) != 0:
 					if repo.new[i][0].tree != repo.old[i][0].tree:
 						for chan in CHANS:
-							client.send(chan, 'New Commit on %s by %s: %s (%s)' % (repo.name, repo.new[i][0].author['name'], repo.new[i][0].message[:50], gity(repo.new[i][0].url)))
+							client.send(chan, 'New Commit on %s\%s by %s: %s (%s)' % (repo.name, i, repo.new[i][0].author['name'], repo.new[i][0].message[:50], gity(repo.new[i][0].url)))
 					repo.old[i] = repo.new[i]
 			time.sleep(45)
