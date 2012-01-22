@@ -19,8 +19,9 @@ class Repo():
 		if branch is 'all':
 			self.branches = github.repos.branches(self.url)
 		else:
-			self.branches = {branch:''}
-
+			self.branches = {}
+			for i in branch:
+				self.branches[i] = ''
 
 		self.old = {}
 		self.new = {}
@@ -31,7 +32,7 @@ def isFork(booly):
 	else:
 		return ''
 
-REPOS = [Repo('B1n\'s game', 'So-I-Made-This-Game...', 'b1naryth1ef'), Repo('JAPIL', 'JAPIL', 'b1naryth1ef', 'master')]
+REPOS = [Repo('B1n\'s game', 'So-I-Made-This-Game...', 'b1naryth1ef'), Repo('JAPIL', 'JAPIL', 'b1naryth1ef', ['master']), Repo('UrTBot', 'UrTBot', 'b1naryth1ef')]
 
 @Cmd('!repos', 'List a github users repos', '!repos <github user>')
 def cmdUserListRepo(obj):
