@@ -43,7 +43,7 @@ def cmdUserListRepo(obj):
 		except HttpError, e:
 			return client.send(obj.chan, 'User %s is not on Github (Misspelled?)' % msg[1])
 		if len(repos) >= 1:
-			client.send(obj.chan, 'Repositories for %s: %s' % (msg[1], ', '.join([i.name for i in repos])))
+			client.send(obj.chan, 'Repositories for %s: %s' % (msg[1], ', '.join([i.name for i in repos[:10]])))
 		else:
 			client.send(obj.chan, 'No repositories for user %s' % msg[1])
 	else:
