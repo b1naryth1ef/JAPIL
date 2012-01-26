@@ -320,16 +320,17 @@ class Client():
 
 	def parse(self, inp):
 		def names(msg):
-			msg = msg.split(':', 2)
-			if len(msg) < 3:
-				return False
-			chan = msg[1].split(' ')[4]
-			users = msg[2].split(' ')
-			names = []
-			for i in users:
-				names.append(niceName(i))
-			self.channels[chan].updateUsers(names)
-			hookFire('names', {'nicks':names, 'chan':chan})
+			try:
+				msg = msg.split(':', 2)
+				chan = msg[1].split(' ')[4]
+				users = msg[2].split(' ')
+				names = []
+				for i in users:
+					names.append(niceName(i))
+				self.channels[chan].updateUsers(names)
+				hookFire('names', {'nicks':names, 'chan':chan})
+			except Exception, e:
+				print 'Error parsing NAMES line: %s' % e
 
 		def topic(msg):
 			msg = msg.split(':', 2)
