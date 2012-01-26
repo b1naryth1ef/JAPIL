@@ -73,8 +73,8 @@ class Channel():
 		if user in self.users: return True
 		else: return False
 
-	def userIsOp(self, user): return self.users[user][2]
-	def userIsVoiced(self, user): return self.users[user][1]
+	def isUserOp(self, user): return self.users[user][2]
+	def isUserVoiced(self, user): return self.users[user][1]
 
 	def userNickChanged(self, oldnick, newnick):
 		self.users[newnick] = self.users[oldnick]
@@ -161,7 +161,7 @@ class Connection():
 	   
 	def join(self):
 		self.c.send('NICK '+str(self.nick)+'\r\n')
-		self.c.send('USER %s 0 * :Py Guy\r\n' % (self.nick))
+		self.c.send('USER %s 0 * :B1z Guyz\r\n' % (self.nick))
 		while True:
 			x = self.c.recv(1024).strip()
 			if 'PING' in x:
@@ -204,7 +204,7 @@ class Client():
 	def opUser(self, user, channel=None):
 		if channel is None:
 			for chan in self.users[user].channels:
-				if self.channels[chan].userIsOp(self.nick):
+				if self.channels[chan].isUserOp(self.nick):
 					self.sendRaw('MODE %s +o %s' % (chan, user)) #use chan.op()
 			return True
 		else:
@@ -223,6 +223,27 @@ class Client():
 			self.channels[channel].deop(user)
 			return True
 		return False
+
+	def updateUser(self, user, opts, chan):
+		junks = ['H', 'd', '*'] #Strip out useless chars
+		for i in junks:
+			opts = opts.strip(i)
+		userob = self.users[user]
+		chanob = self.channels[chan]
+		if user in chanob.users.keys(): #Reset perms
+			chanob.users[user][1] = False
+			chanob.users[user][2] = False
+		if '@' in opts:
+			chanob.users[user][2] = True
+		if '+' in opts:
+			chanob.users[user][1] = True
+		
+		print user, chanob.isUserOp(user)
+
+	def updateUsers(self):
+		for i in self.channels.keys():
+			self.sendRaw('WHO %s' % i)
+			#time.sleep(.1) #Do we need to throttle?
 	
 	def niceList(self, seq, length=None):
 		'''Make a nice list!'''
@@ -230,42 +251,47 @@ class Client():
 			length = self.maxLength
 		ret = [seq[i:i+length] for i in range(0, len(seq), length)]
 		return ret
-			 
-	def send(self, chan, msg): self.sendRaw('PRIVMSG %s :%s' % (chan, msg))
-	
-	def sendRaw(self, raw): self.c.write(raw)
 
-	def sendCTCP(self, user, Type, msg): self.c.write('%s %s :\001%s\001' % (Type, user, msg))
-	
 	def quit(self, msg='B1naryth1ef Rocks!'): 
 		self.c.write('QUIT :%s' % msg)
+		self.c.disconnect()
 		self.alive = False
-
-	def canJoin(self, channel):
-		if channel not in self.channels.keys() and channel not in self.badchannels:
-			return True
-		return False
+			 
+	#SEND FUNCTIONS
+	def send(self, chan, msg): self.sendRaw('PRIVMSG %s :%s' % (chan, msg))
+	def sendRaw(self, raw): self.c.write(raw)
+	def sendCTCP(self, user, msg, Type='PRIVMSG'): self.c.write('%s %s :\001%s\001' % (Type, user, msg))
+	def inject(self, line): self.parse(line) #Used for testing
 	
+	#SET FUNCTIONS
+	def setUserMode(self, user, channel, mode): pass
+	def setChanMode(self, channel, mode): pass
+	def setUserAdmin(self, user, stat):
+		if user in self.users.keys():
+			self.users[user] = stat
+
+	#IF STATEMENTS
 	def isClientOp(self, channel): return self.channels[channel].users[self.nick][2]
 	def isClientVoiced(self, channel): return self.channels[channel].users[self.nick][1]
-
-	def inChannel(self, channel):
+	def isClientAdmin(self, nick):
+		if nick in self.users.keys():
+			if self.users[nick].admin is True:
+				return True
+		return False
+	def isClientInChannel(self, channel):
 		if channel in self.channels.keys():
 			return True
 		return False
 
 	def joinChannel(self, channel, passwd=''):
-		if not self.inChannel(channel):
+		if not self.isClientInChannel(channel):
 			self.c.write('JOIN %s %s' % (channel, passwd))
 			self.channels[channel] = Channel(channel, self)
 	
 	def partChannel(self, channel, msg='G\'bye!'):
-		if self.inChannel(channel):
+		if self.isClientInChannel(channel):
 			self.c.write('PART %s :%s' % (channel, msg))
 			del self.channels[channel]
-
-	def setUserMode(self, user, channel, mode): pass
-	def setChanMode(self, channel, mode): pass
 
 	def niceParse(self):
 		self.parse(self.c.recv())
@@ -283,20 +309,16 @@ class Client():
 			return True
 		return False
 
-	def isAdmin(self, nick):
-		if nick in self.users.keys():
-			if self.users[nick].admin is True:
-				return True
-		return False
-
 	def sendMustBeAdmin(self, chan):
 		self.send(chan, self.messages['mustbeadmin'])	
 	def sendClientMustBeOp(self, chan):
-		self.send(chan, self.messages['botmustbeop'])	 
+		self.send(chan, self.messages['botmustbeop'])
 
 	def parse(self, inp):
 		def names(msg):
 			msg = msg.split(':', 2)
+			if len(msg) < 3:
+				return False
 			chan = msg[1].split(' ')[4]
 			users = msg[2].split(' ')
 			names = []
@@ -309,6 +331,7 @@ class Client():
 			msg = msg.split(':', 2)
 			chan = msg[1].split(' ')[3]
 			topic = msg[2]
+			self.channels[chan].setTopic(topic, '*')
 			hookFire('topic', {'chan':chan, 'topic':topic})
 		
 		def part(msg):
@@ -347,7 +370,7 @@ class Client():
 				self.channels[chan].setUserMode(mode, touser, fromuser)
 				hookFire('usermode', {'fromnick':fromuser, 'tonick':touser, 'mode':mode, 'chan':chan})
 
-		def setTopic(msg):
+		def settopic(msg):
 			msg = msg.split(' ', 3)
 			hostmask = msg[0]
 			chan = msg[2]
@@ -402,19 +425,22 @@ class Client():
 				del self.users[fromnick]
 			except Exception, e:
 				print e
-
 			hookFire('nick_change', {'hostmask':hostmask, 'fromnick':fromnick, 'tonick':tonick})
 
 		def who(line):
 			'''/WHO Response'''
 			msg = line.split(' ')
-			name = msg[4][1:]
-			hostmask = msg[5]
-			nick = niceName(msg[7])
-			hookFire('who_response', {'name':name, 'hostmask':hostmask, 'nick':nick})
+			if len(msg) >= 9:
+				name = msg[4].strip('~')
+				hostmask = msg[5]
+				nick = niceName(msg[7])
+				opts = msg[8]
+				chan = msg[3]
+				self.updateUser(nick, opts, chan)
+				hookFire('who_response', {'name':name, 'hostmask':hostmask, 'nick':nick, 'opts':opts})
 
 		def pong(line):
-			'''Ping request'''
+			'''Server ping request'''
 			if self.autoPong is True: self.c.write('PONG')
 			hookFire('ping', {'line':line})
 
@@ -423,10 +449,9 @@ class Client():
 			line = line.split(' ')
 			sender = fromHost(line[0])
 			hookFire('ctcp', {'line':line, 'nick':sender})
-			#if line[1] == 'NOTICE': return None
 			if line[3] == ':\x01PING':
 				timey = str(time.time()).split('.')
-				self.sendCTCP(sender, 'NOTICE', 'PING %s %s' % (timey[0], timey[1]))
+				self.sendCTCP(sender, 'PING %s %s' % (timey[0], timey[1]), 'NOTICE')
 
 		if inp != None:
 			inp = inp.split('\r\n')
@@ -447,7 +472,7 @@ class Client():
 				elif line_type[1] == 'PART': part(line)
 				elif line_type[1] == 'JOIN': join(line)
 				elif line_type[1] == 'MODE': mode(line)
-				elif line_type[1] == 'TOPIC': setTopic(line)
+				elif line_type[1] == 'TOPIC': settopic(line)
 				elif line_type[1] == 'KICK': kick(line)
 				elif line_type[1] == 'NICK': nick(line)
 			
