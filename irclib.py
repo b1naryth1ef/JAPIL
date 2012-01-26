@@ -197,6 +197,7 @@ class Client():
 		self.botPrefix = '!'
 		self.maxLength = 100 #The max length a line can be
 		self.printLines = True
+		self.alive = True
 
 		self.messages = messgz
 
@@ -233,8 +234,12 @@ class Client():
 	def send(self, chan, msg): self.sendRaw('PRIVMSG %s :%s' % (chan, msg))
 	
 	def sendRaw(self, raw): self.c.write(raw)
+
+	def sendCTCP(self, user, Type, msg): self.c.write('%s %s :\001%s\001' % (Type, user, msg))
 	
-	def quit(self, msg='B1naryth1ef Rocks!'): self.c.write('QUIT :%s' % msg)
+	def quit(self, msg='B1naryth1ef Rocks!'): 
+		self.c.write('QUIT :%s' % msg)
+		self.alive = False
 
 	def canJoin(self, channel):
 		if channel not in self.channels.keys() and channel not in self.badchannels:
@@ -412,15 +417,26 @@ class Client():
 			'''Ping request'''
 			if self.autoPong is True: self.c.write('PONG')
 			hookFire('ping', {'line':line})
+
+		def ctcp(orig, line):
+			'''CTCP request'''
+			line = line.split(' ')
+			sender = fromHost(line[0])
+			hookFire('ctcp', {'line':line, 'nick':sender})
+			#if line[1] == 'NOTICE': return None
+			if line[3] == ':\x01PING':
+				timey = str(time.time()).split('.')
+				self.sendCTCP(sender, 'NOTICE', 'PING %s %s' % (timey[0], timey[1]))
+
 		if inp != None:
 			inp = inp.split('\r\n')
-		else:
-			return None
+		else: return None
 		for l in inp:
 			if self.printLines is True and l not in [None, '', '\r\n']: print '[X]',l
 			line_type = l.strip().split(' ')
 			line = l.strip()
 			orig = l
+			if '\001' in orig: ctcp(orig, line)
 			if len(line_type) >= 2:
 				print '>>>>',line_type[1]
 				if line_type[1] == 'PRIVMSG': msg(line)
@@ -434,5 +450,4 @@ class Client():
 				elif line_type[1] == 'TOPIC': setTopic(line)
 				elif line_type[1] == 'KICK': kick(line)
 				elif line_type[1] == 'NICK': nick(line)
-				elif orig.find('\x01'): print True
 			
