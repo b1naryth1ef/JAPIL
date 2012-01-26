@@ -25,4 +25,14 @@ JAPIL is a simple, easy to use/implement Python IRC Library, with support for th
 	while True:
 		client.niceParse() #Starts conn.recv() and parseing lines...
 
+## Hookable events:
+* Names list
+* Topic change
+* User join/parts
+* Channel/user mode changes
+* Kicks
+* Nick changes
+* Ping requests
+* CTCP (soon!)
+
 Not sold? It even comes with an (awesome) example IRC Bot!

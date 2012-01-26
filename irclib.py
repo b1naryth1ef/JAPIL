@@ -392,6 +392,12 @@ class Client():
 			for chan in self.channels.values():
 				if chan.hasUser(fromnick):
 					chan.userNickChanged(fromnick, tonick)
+			try:
+				self.users[tonick] = self.users[fromnick]
+				del self.users[fromnick]
+			except Exception, e:
+				print e
+
 			hookFire('nick_change', {'hostmask':hostmask, 'fromnick':fromnick, 'tonick':tonick})
 
 		def who(line):
