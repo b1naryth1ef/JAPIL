@@ -119,13 +119,14 @@ class Channel():
 	def userPart(self, nick, msg, hostmask):
 		print 'User left %s: %s' % (self.name, nick)
 		del self.users[nick]
-	
+
 	def userJoin(self, nick, hostmask):
 		print 'User joined %s: %s' % (self.name, nick)
 		if nick not in self.c.users:
 			self.c.users[nick] = User(nick)
 		self.users[nick] = [self.c.users[nick], False, False]
 		self.recheckPerms()
+		return self.c.users[nick]
 
 class Connection():
 	'''Wrapper around socket object'''
@@ -224,12 +225,15 @@ class Client():
 			return True
 		return False
 
-	def updateUser(self, user, opts, chan):
+	def updateUser(self, user, opts, chan, hosty):
 		junks = ['H', 'd', '*'] #Strip out useless chars
 		for i in junks:
 			opts = opts.strip(i)
-		userob = self.users[user]
 		chanob = self.channels[chan]
+		if user in self.users.keys():
+			userob = self.users[user]
+		else:
+			userob = chanob.userJoin(user, hosty)
 		if user in chanob.users.keys(): #Reset perms
 			chanob.users[user][1] = False
 			chanob.users[user][2] = False
@@ -436,7 +440,10 @@ class Client():
 				nick = niceName(msg[7])
 				opts = msg[8]
 				chan = msg[3]
-				self.updateUser(nick, opts, chan)
+				try:
+					self.updateUser(nick, opts, chan, hostmask)
+				except Exception, e:
+					print 'Problem parsing WHO line: %s' % e
 				hookFire('who_response', {'name':name, 'hostmask':hostmask, 'nick':nick, 'opts':opts})
 
 		def pong(line):
