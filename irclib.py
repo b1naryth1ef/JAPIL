@@ -150,10 +150,10 @@ class Connection():
 		self.c.close
 		self.alive = False
 
-	def startup(self, ret=False):
+	def startup(self):
 		self.connect()
 		self.join()
-		if ret is True: return self
+		return self
 
 	def connect(self):
 		self.c = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -244,10 +244,13 @@ class Client():
 		
 		print user, chanob.isUserOp(user)
 
-	def updateUsers(self):
-		for i in self.channels.keys():
-			self.sendRaw('WHO %s' % i)
-			#time.sleep(.1) #Do we need to throttle?
+	def updateUsers(self, chan=None):
+		if chan is None:
+			for i in self.channels.keys():
+				self.sendRaw('WHO %s' % i)
+				#time.sleep(.1) #Do we need to throttle?
+		elif chan in self.channels.keys(): #Make sure we're not just WHO'n a random channel
+			self.sendRaw('WHO %s' % chan)
 	
 	def niceList(self, seq, length=None):
 		'''Make a nice list!'''
@@ -290,6 +293,7 @@ class Client():
 	def joinChannel(self, channel, passwd=''):
 		if not self.isClientInChannel(channel):
 			self.c.write('JOIN %s %s' % (channel, passwd))
+			self.updateUsers(channel)
 			self.channels[channel] = Channel(channel, self)
 	
 	def partChannel(self, channel, msg='G\'bye!'):
