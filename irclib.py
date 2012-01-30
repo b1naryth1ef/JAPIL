@@ -71,7 +71,7 @@ class Channel():
 
 	def hasUser(self, user):
 		if user in self.users: return True
-		else: return False
+		return False
 
 	def isUserOp(self, user): return self.users[user][2]
 	def isUserVoiced(self, user): return self.users[user][1]
@@ -92,7 +92,7 @@ class Channel():
 
 	def setUserMode(self, mode, user, byuser): 
 		if mode[1:] == 'b' and mode[:1] == '+':
-			self.addPenalty(user, Penalty(user, reason, byuser, 'ban'))
+			self.addPenalty(user, Penalty(user, 'None', byuser, 'ban'))
 		elif mode[1:] == 'b' and mode[:1] == '-':
 			for pen in self.penalties[user]:
 				if pen.type is 'ban':
