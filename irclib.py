@@ -358,9 +358,10 @@ class Client():
 			msg = msg.split(' ')
 			hostmask = msg[0]
 			chan = msg[2]
-			nick = fromHost(hostmask)
-			self.channels[chan].userJoin(nick, hostmask)
-			hookFire('join', {'hostmask':hostmask, 'chan':chan, 'nick':nick})
+			nick = fromHost(hostmask)	
+			if nick != self.nick:
+				self.channels[chan].userJoin(nick, hostmask)
+				hookFire('join', {'hostmask':hostmask, 'chan':chan, 'nick':nick})
 		
 		def mode(msg):
 			msg = msg.split(' ')
