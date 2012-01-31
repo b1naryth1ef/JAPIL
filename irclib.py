@@ -305,7 +305,6 @@ class Client():
 		self.parse(self.c.recv())
 	
 	def makeAdmin(self, nick):
-		print self.users
 		if nick in self.users.keys():
 			self.users[nick].admin = True
 			return True
@@ -361,6 +360,10 @@ class Client():
 			nick = fromHost(hostmask)	
 			if chan in self.channels.keys():
 				self.channels[chan].userJoin(nick, hostmask)
+			if nick == self.nick:
+				if chan not in self.channels.keys():
+					print 'Adding %s' % chan
+					self.channels[chan] = Channel(chan, self)
 			hookFire('join', {'hostmask':hostmask, 'chan':chan, 'nick':nick})
 		
 		def mode(msg):
