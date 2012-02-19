@@ -265,7 +265,7 @@ class Client():
 		self.alive = False
 			 
 	#SEND FUNCTIONS
-	def send(self, chan, msg): self.sendRaw('PRIVMSG %s :%s' % (chan, msg))
+	def send(self, chan): self.sendRaw('PRIVMSG %s :%s' % (chan, msg))
 	def sendRaw(self, raw): self.c.write(raw)
 	def sendCTCP(self, user, msg, Type='PRIVMSG'): self.c.write('%s %s :\001%s\001' % (Type, user, msg))
 	def inject(self, line): self.parse(line) #Used for testing
