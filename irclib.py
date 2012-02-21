@@ -36,8 +36,9 @@ def niceName(name):
 	return name
 
 class User():
-	def __init__(self, nick):
+	def __init__(self, nick, host=None):
 		self.nick =  niceName(nick)
+		self.hostmask = host
 		self.admin = False
 		self.aliasis = []
 
@@ -123,7 +124,7 @@ class Channel():
 	def userJoin(self, nick, hostmask):
 		print 'User joined %s: %s' % (self.name, nick)
 		if nick not in self.c.users:
-			self.c.users[nick] = User(nick)
+			self.c.users[nick] = User(nick, hostmask)
 		self.users[nick] = [self.c.users[nick], False, False]
 		self.recheckPerms()
 		return self.c.users[nick]
