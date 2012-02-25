@@ -150,6 +150,7 @@ class Connection():
 	def disconnect(self):
 		self.c.close
 		self.alive = False
+		return False
 
 	def startup(self):
 		self.connect()
@@ -179,9 +180,11 @@ class Connection():
 
 	def recv(self, bytes=1024): 
 		if self.alive is True:
-			return self.c.recv(bytes)	
-		else:
-			return None
+			data = self.c.recv(bytes)
+			if data:
+				return data
+			return self.disconnect()
+		return None
 	def write(self, content): self.c.send('%s\r\n' % content)
 
 class Client():
@@ -472,7 +475,12 @@ class Client():
 
 		if inp != None:
 			inp = inp.split('\r\n')
-		else: return None
+		elif inp == False:
+			self.alive = False
+			return
+		else:
+			return
+
 		for l in inp:
 			if self.printLines is True and l not in [None, '', '\r\n']: print '[X]',l
 			line_type = l.strip().split(' ')
