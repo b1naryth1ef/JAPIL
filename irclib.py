@@ -81,9 +81,9 @@ class Channel():
 		self.users[newnick] = self.users[oldnick]
 		del self.users[oldnick]
 
-	def addPenalty(self, user, penalty):
-		if user in self.penalties.keys(): self.penalties[user].append(penalty)
-		else: self.penalties[user] = [penalty]
+	def addPenalty(self, user, penalty): pass
+		# if user in self.penalties.keys(): self.penalties[user].append(penalty)
+		# else: self.penalties[user] = [penalty]
 
 	def userKicked(self, user, byuser, reason): self.addPenalty(user, Penalty(user, reason, byuser, 'kick'))
 
@@ -130,61 +130,45 @@ class Channel():
 		return self.c.users[nick]
 
 class Connection():
-	'''Wrapper around socket object'''
-	def __init__(self, network='irc.freenode.net', port=6667, nick='Exampl3B0t', startchannels=['#bitchnipples'], tag='irclib'):
-		self.getRandTag = lambda x: '%s_%s' % (x, random.randint(1111,9999))
+	def __init__(self, Host, Nick, Port=6667):
+		self.c = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		self._info = [Host, Port, Nick]
 
-		self.network = network
-		self.port = port
-		self.nick = nick
-		self.startchannels = startchannels
-		self.tag = tag
 		self.alive = False
 
-		self.surv = self.getRandTag(tag)
-		self.host = self.getRandTag(tag)
-		self.real = self.getRandTag(tag)
-
-		self.c = None #Block out the socket object
+	def connect(self, block):
+		self.c.connect((self._info[0], self._info[1]))
+		self.alive = True
+		self.c.send('NICK %s\r\n' % self._info[2])
+		self.c.send('USER %s 0 * :WittleBoteh Hipstah\r\n' % self._info[2])
+		startPong = time.time()
+		while time.time()-startPong < 10: #Wait only 10 seconds for a PING message
+			x = self.read().strip()
+			if 'PING' in x:
+				self.write('PONG%s' % x.split('PING')[1])
+				break
+		if block:
+			startWait = time.time()
+			while time.time() - startWait < 30:
+				x = self.read().strip()
+				if 'End of /MOTD' in x:
+					self.write('JOIN #lostchannel')
+					break
+		return self
 
 	def disconnect(self):
 		self.c.close
 		self.alive = False
-		return False
 
-	def startup(self):
-		self.connect()
-		self.join()
-		return self
-
-	def connect(self):
-		self.c = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		self.c.connect((self.network, self.port))
-		self.alive = True
-	   
-	def join(self):
-		self.c.send('NICK '+str(self.nick)+'\r\n')
-		self.c.send('USER %s 0 * :B1z Guyz\r\n' % (self.nick))
-		while True:
-			x = self.c.recv(1024).strip()
-			if 'PING' in x:
-				time.sleep(2)
-				#print "'",x[1].strip(' ').strip(' '),"'"
-				self.c.send('PONG '+x.split('PING')[1].strip(' ').strip(' '))
-				break
-		self.c.send('JOIN '+str('#l33tb0tbr0ski')+'\r\n') #This message is made to get lost.
-		while True:
-			x = self.c.recv(1024).strip()
-			if 'End of /MOTD' in x:
-				return True
-
-	def recv(self, bytes=1024): 
+	def read(self, bytes=4080): 
 		if self.alive is True:
 			data = self.c.recv(bytes)
 			if data:
 				return data
-			return self.disconnect()
+			else:
+				self.disconnect()
 		return None
+
 	def write(self, content): self.c.send('%s\r\n' % content)
 
 class Client():
@@ -194,7 +178,7 @@ class Client():
 		self.channels = {}
 		self.badchannels = []
 		self.users = {}
-		self.nick = self.c.nick
+		self.nick = self.c._info[2]
 		self.rejoin = rejoin
 
 		self.autoPong = True
@@ -205,6 +189,11 @@ class Client():
 		self.alive = True
 
 		self.messages = messgz
+
+	def loop(self):
+		while True:
+			if self.alive is True:
+				self.parse(self.c.read())
 
 	def opUser(self, user, channel=None):
 		if channel is None:
@@ -306,7 +295,7 @@ class Client():
 			del self.channels[channel]
 
 	def niceParse(self):
-		self.parse(self.c.recv())
+		self.parse(self.c.read())
 	
 	def makeAdmin(self, nick):
 		if nick in self.users.keys():
@@ -475,9 +464,6 @@ class Client():
 
 		if inp != None:
 			inp = inp.split('\r\n')
-		elif inp == False:
-			self.alive = False
-			return
 		else:
 			return
 
